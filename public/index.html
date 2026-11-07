@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Last 6 Hours</title>
+<meta name="theme-color" content="#000000"><meta name="mobile-web-app-capable" content="yes">
+<style>
+:root{color-scheme:dark}
+html,body{margin:0;height:100%;background:#000;color:#cfd8cf;font:14px 'Courier New',monospace;overflow:hidden;user-select:none;-webkit-user-select:none}
+#gl{position:fixed;inset:0;width:100%;height:100%}
+#vig{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 45%,#000c 100%)}
+#clock{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:16px;font-size:26px;letter-spacing:2px;text-shadow:0 0 8px #000}
+#msg{position:fixed;left:50%;bottom:16%;transform:translateX(-50%);width:min(90vw,640px);text-align:center;font-size:16px;color:#e8e8b0;text-shadow:0 0 6px #000;opacity:0;transition:opacity .4s;pointer-events:none}
+#fbtn,#pbar{position:fixed;bottom:calc(10px + env(safe-area-inset-bottom,0px));background:#000a;color:#cfd8cf;border:1px solid #556;padding:10px 14px;font:inherit;border-radius:8px;cursor:pointer;z-index:12;touch-action:manipulation}
+#fbtn{right:14px}#fbtn.on{background:#ddc;color:#000}
+#pbar{left:50%;transform:translateX(-50%)}
+#phone{position:fixed;left:50%;bottom:0;width:min(94vw,720px);transform:translate(-50%,105%);transition:transform .25s;background:#070907;border:2px solid #333;border-radius:18px 18px 0 0;padding:10px;z-index:10;box-sizing:border-box}
+#phone.on{transform:translate(-50%,0)}
+#fw{position:relative;margin:0 auto;width:min(100%,calc(58vh*1.6));aspect-ratio:8/5;border-radius:6px;overflow:hidden;background:#000}
+#feed,#ovl{position:absolute;inset:0;width:100%;height:100%}
+#feed{filter:grayscale(1) sepia(1) hue-rotate(55deg) saturate(1.6) contrast(1.25) brightness(1.5)}
+#pb{display:flex;gap:8px;margin-top:8px}
+#pb button{flex:1;padding:12px 4px;background:#111;color:#8f8;border:1px solid #363;font:inherit;border-radius:6px;cursor:pointer}
+#pb button.on{background:#8f8;color:#000}
+.scr{position:fixed;inset:0;background:#000d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:24px;z-index:20}
+.scr h1{font-size:clamp(28px,6vw,56px);margin:0;letter-spacing:4px;font-weight:400}
+.scr p{max-width:580px;line-height:1.6;margin:0;color:#aab}
+.scr button{font:inherit;font-size:18px;padding:12px 28px;background:#a11;color:#fff;border:0;border-radius:6px;cursor:pointer}
+#js{position:fixed;inset:0;background:radial-gradient(circle,#111,#000 70%);display:none;align-items:center;justify-content:center;z-index:30}
+#js.on{display:flex}
+#js i{width:14vmin;height:6vmin;background:#fff;border-radius:50%;margin:0 6vmin;box-shadow:0 0 6vmin 2vmin #fff;animation:z .12s infinite alternate}
+@keyframes z{from{transform:scale(.7) translate(-1vmin,0)}to{transform:scale(2.8) translate(1vmin,1vmin)}}
+.ph #pbar{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px));left:14px;transform:none}
+#gl{touch-action:none}
+#rot{position:fixed;inset:0;z-index:40;background:#000;display:none;align-items:center;justify-content:center;text-align:center;padding:30px;font-size:18px}
+@media (orientation:portrait) and (pointer:coarse){#rot{display:flex}}
+@media (max-height:520px){#phone{padding:6px;width:min(80vw,720px)}#fw{width:min(100%,calc(62vh*1.6))}#pb{margin-top:6px}#pb button{padding:8px 2px}#clock{font-size:20px}.scr{gap:10px}.scr h1{font-size:30px}.scr p{font-size:12px;line-height:1.4}#msg{bottom:24%;font-size:14px}}
+.hide{display:none!important}
+</style></head><body>
+<div id="vig"></div><div id="clock">12 AM</div><div id="msg"></div>
+<button id="fbtn">FLASHLIGHT (F)</button><button id="pbar">▼ PHONE (Space)</button>
+<div id="phone"><div id="fw"><canvas id="feed" width="640" height="400"></canvas><canvas id="ovl" width="640" height="400"></canvas></div>
+<div id="pb"><button>1 Hallway</button><button>2 Kitchen</button><button>3 Living room</button></div></div>
+<div id="rot">Rotate your device to landscape to play.</div><div id="js"><i></i><i></i></div>
+<div id="scr" class="scr"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=i=>document.getElementById(i),R=(a,b)=>a+Math.random()*(b-a),clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const HL=['12 AM','1 AM','2 AM','3 AM','4 AM','5 AM','6 AM'];
+/* ---------- audio ---------- */
+let AC,drone;
+function audio(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state=='suspended')AC.resume();
+ if(!drone){drone=AC.createGain();drone.gain.value=.03;drone.connect(AC.destination);[55,58.5,110.7].forEach(f=>{const o=AC.createOscillator(),l=AC.createBiquadFilter();o.type='sawtooth';o.frequency.value=f;l.frequency.value=180;o.connect(l).connect(drone);o.start()})}}
+function tone(f,d,ty='sine',v=.2,sl=0,dl=0){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain(),t0=AC.currentTime+dl;o.type=ty;o.frequency.setValueAtTime(f,t0);if(sl)o.frequency.exponentialRampToValueAtTime(Math.max(20,f+sl),t0+d);g.gain.setValueAtTime(v,t0);g.gain.exponentialRampToValueAtTime(.001,t0+d);o.connect(g).connect(AC.destination);o.start(t0);o.stop(t0+d)}
+function noise(d,fq=800,v=.3,dl=0){if(!AC)return;const n=AC.sampleRate*d|0,b=AC.createBuffer(1,n,AC.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=Math.random()*2-1;const s=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain(),t0=AC.currentTime+dl;s.buffer=b;f.type='lowpass';f.frequency.value=fq;g.gain.setValueAtTime(v,t0);g.gain.exponentialRampToValueAtTime(.001,t0+d);s.connect(f).connect(g).connect(AC.destination);s.start(t0)}
+const step=(v,dl=0)=>{noise(.1,260,v,dl);noise(.1,220,v*.8,dl+.28)};
+const knock=()=>{noise(.08,300,.6);tone(90,.1,'square',.2);noise(.08,300,.5,.18)};
+const gurgle=()=>{for(let i=0;i<4;i++)tone(R(150,260),.14,'sine',.12,-60,i*.1);noise(.5,500,.12)};
+const click=()=>tone(1200,.04,'square',.06);
+/* ---------- three.js scene ---------- */
+const ren=new THREE.WebGLRenderer({antialias:true});ren.setSize(innerWidth,innerHeight);ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.domElement.id='gl';document.body.prepend(ren.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0);scene.fog=new THREE.FogExp2(0,.09);
+const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,30);camera.position.set(0,1.5,0);camera.rotation.order='YXZ';scene.add(camera);
+const fl=new THREE.SpotLight(0xfff2d0,0,10,.38,.5,1);fl.position.set(.15,-.1,0);camera.add(fl);
+const tg=new THREE.Object3D();tg.position.set(0,0,-1);camera.add(tg);fl.target=tg;
+scene.add(new THREE.AmbientLight(0x223344,.14));
+const bulb=new THREE.PointLight(0xaaccbb,.28,7,1);bulb.position.set(0,2.6,0);scene.add(bulb);
+function tex(){const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.fillStyle='#9aa5a0';g.fillRect(0,0,128,128);g.strokeStyle='#4a5450';g.lineWidth=4;for(const[x,y]of[[0,0],[64,0],[0,64],[64,64]])g.strokeRect(x,y,64,64);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(3,3);return t}
+const T=tex(),M=(c,o={})=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.85},o));
+const wall=M(0xffffff,{map:T}),box=(w,h,d,x,y,z,m,p=scene)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);p.add(o);return o};
+box(6,.1,6,0,-.05,0,wall);box(6,.1,6,0,2.85,0,wall);box(6,2.8,.1,0,1.4,3,wall);box(6,2.8,.1,0,1.4,-3,wall);box(.1,2.8,6,-3,1.4,0,wall);
+box(.1,2.8,1.55,3,1.4,-2.225,wall);box(.1,2.8,3.35,3,1.4,1.325,wall);box(.1,.7,1.1,3,2.45,-.9,wall);
+box(.1,2.8,6,5.2,1.4,0,M(0x8a8a80));box(2.2,.1,6,4.1,-.05,0,M(0x555550));box(2.2,.1,6,4.1,2.85,0,M(0x555550));
+box(.9,.9,.5,0,.45,-2.7,M(0xdddddd));box(.9,1.1,.04,0,1.7,-2.94,M(0x556666,{metalness:.8,roughness:.2}));
+box(.5,.4,.7,1.6,.2,-2.5,M(0xdddddd));box(.5,.7,.2,1.6,.75,-2.85,M(0xdddddd));
+/* door */
+const doorP=new THREE.Group();doorP.position.set(2.95,0,-1.45);scene.add(doorP);box(.06,2.1,1.1,0,1.05,.55,M(0x4a3020),doorP);box(.1,.1,.1,-.05,1,.95,M(0xaaaa99),doorP);
+/* tub + curtain + Loch Ness */
+box(1.2,.65,2.8,-2.3,.325,-.9,M(0xc8c8c0));
+const water=new THREE.Mesh(new THREE.PlaneGeometry(1,2.6),M(0x08121a,{roughness:.2}));water.rotation.x=-Math.PI/2;water.position.set(-2.3,.66,-.9);scene.add(water);
+const cg=new THREE.Group();cg.position.set(-1.62,0,.5);scene.add(cg);
+const cm=new THREE.Mesh(new THREE.PlaneGeometry(2.8,2),M(0x4a5a66,{side:THREE.DoubleSide}));cm.rotation.y=Math.PI/2;cm.position.set(0,1.2,-1.4);cg.add(cm);cg.scale.z=.12;
+const ness=new THREE.Group();ness.position.set(-2.3,-1.25,-.9);scene.add(ness);
+const nm=M(0x1c3a2a,{roughness:.5});
+box(.2,1.3,.2,0,.65,0,nm,ness);const nh=box(.55,.22,.3,.1,1.38,0,nm,ness);
+for(const z of[-.08,.08]){const e=new THREE.Mesh(new THREE.SphereGeometry(.03,8,8),new THREE.MeshBasicMaterial({color:0xe8ffb0}));e.position.set(.34,1.42,z);ness.add(e)}
+/* door monster */
+function mkMon(par=scene){const g=new THREE.Group(),b=M(0x050505,{roughness:1}),add=(geo,x,y,z)=>{const m=new THREE.Mesh(geo,b);m.position.set(x,y,z);g.add(m);return m};
+add(new THREE.CylinderGeometry(.22,.3,1,8),0,1,0);add(new THREE.SphereGeometry(.2,12,10),0,1.72,0).scale.y=1.25;
+for(const x of[-.4,.4])add(new THREE.CylinderGeometry(.06,.06,1.1,6),x,.95,0);for(const x of[-.12,.12])add(new THREE.CylinderGeometry(.08,.08,.6,6),x,.3,0);
+const eyes=new THREE.Group(),em=new THREE.MeshBasicMaterial({color:0xffffff});for(const x of[-.07,.07]){const e=new THREE.Mesh(new THREE.SphereGeometry(.035,8,8),em);e.position.set(x,1.75,.18);eyes.add(e)}
+g.add(eyes);g.userData.eyes=eyes;g.visible=false;par.add(g);return g}
+const monMesh=mkMon();monMesh.position.set(3.8,0,-.9);monMesh.rotation.y=-Math.PI/2;
+const hit=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false});
+const tubHit=box(.5,2,3,-1.9,1.1,-.9,hit),doorHit=box(1.2,2.2,1.6,2.4,1.1,-.9,hit);
+/* ---------- game state ---------- */
+let t=0,running=false,over=true,hr=0,doorClosed=false,curtainClosed=false,curtainT=0,flashOn=false,phoneOpen=false,curCam=0,doorMon=null,kn=0,hb=0,glitch=0,hint={},N={};
+const mons=[{type:0,from:0},{type:1,from:60},{type:2,from:120},{type:1,from:240}];
+const dd=()=>Math.min(1,t/360),mvInt=()=>11-7.8*Math.pow(dd(),.85),doorKill=()=>7.5-4.9*dd(),nKill=()=>9.5-6*dd(),nGap=()=>(38-28*Math.pow(dd(),.8))*R(.75,1.25);
+const NODE_CAM=[2,1,0,0];
+function reset(){t=0;hr=0;over=false;running=true;doorClosed=false;curtainClosed=false;doorMon=null;kn=0;hb=0;hint={};N={on:false,sp:24,kill:0,r:0,g:0};
+ mons.forEach(m=>{m.on=false;m.pos=0;m.tm=9});setFlash(false);setPhone(false);selectCam(0);$('scr').classList.add('hide');$('js').classList.remove('on');$('clock').textContent=HL[0]}
+function msg(s,ms=4500){const m=$('msg');m.textContent=s;m.style.opacity=1;clearTimeout(msg.h);msg.h=setTimeout(()=>m.style.opacity=0,ms)}
+function setFlash(v){flashOn=v;fl.intensity=v?3.2:0;$('fbtn').classList.toggle('on',v);click()}
+const coarse=matchMedia('(pointer:coarse)').matches;
+function setPhone(v){if(v&&!running)return;phoneOpen=v;$('phone').classList.toggle('on',v);document.body.classList.toggle('ph',v);
+ $('pbar').textContent=v?'✕ CLOSE PHONE':coarse?'▼ PHONE':'▼ PHONE (Space)';if(v)tone(700,.08,'sine',.08)}
+function goFull(){if(!coarse)return;const f=document.documentElement;try{f.requestFullscreen&&f.requestFullscreen().catch(()=>{});screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{})}catch(e){}try{window.Capacitor.Plugins.StatusBar.hide()}catch(e){}}
+function selectCam(i){curCam=i;glitch=.4;[...$('pb').children].forEach((b,j)=>b.classList.toggle('on',j==i))}
+function toggleDoor(){if(!doorClosed){doorClosed=true;if(doorMon)doorMon.wait=R(4,7)+3*dd();kn=.3;noise(.2,150,.7)}
+ else{if(doorMon)return die('door');doorClosed=false;tone(160,.5,'sawtooth',.05,60)}}
+function toggleCurtain(){curtainClosed=!curtainClosed;noise(.25,1500,.15);if(curtainClosed){curtainT=5;
+  if(N.on){if(flashOn){N.on=false;N.sp=nGap();msg('It sank back into the water.',2500);tone(120,.6,'sine',.2,-60)}else msg('Too dark to scare it off. It is still there!',3000)}}}
+function die(why){if(over)return;over=true;running=false;setPhone(false);$('js').classList.add('on');
+ tone(300,1.3,'sawtooth',.4,900);tone(311,1.3,'sawtooth',.3,880);noise(1.3,4000,.6);
+ setTimeout(()=>{$('js').classList.remove('on');show('GAME OVER',why=='door'?'It got inside the bathroom.':'The Loch Ness Monster dragged you under.','TRY AGAIN')},1500)}
+function win(){running=false;over=true;setPhone(false);tone(880,2.2,'sine',.25);tone(1320,2.6,'sine',.15,0,.3);show('6 AM — YOU SURVIVED.','Daylight is coming through the vent. The footsteps have stopped.','PLAY AGAIN')}
+function show(a,b,c){const s=$('scr');s.classList.remove('hide');s.innerHTML=`<h1>${a}</h1><p>${b}</p><button id="go">${c}</button>`;$('go').onclick=()=>{audio();goFull();reset()}}
+/* ---------- monsters ---------- */
+function arrive(m){m.pos=3;doorMon=m;if(doorClosed){m.wait=R(4,7)+3*dd();kn=.4}else{m.kill=doorKill();knock();noise(.4,500,.5)}
+ if(!hint.d){hint.d=1;msg('Something is at the door! Flashlight on, look at the door, then close it (click).',6500)}}
+function move(m){let np=m.pos+1;if(m.type==1){const r=Math.random();np=r<.5?m.pos+1:r<.75?m.pos+2:Math.max(0,m.pos-1)}
+ np=Math.min(3,np);if(np==3&&doorMon)np=2;if(np==m.pos)return;
+ if(np==3){arrive(m);return}m.pos=np;step(.1+np*.12);if(phoneOpen&&NODE_CAM[np]==curCam)glitch=.5}
+function tick(dt){
+ t+=dt;const d=dd(),h=Math.min(5,t/60|0);
+ if(h>hr){hr=h;tone(520,1.2,'sine',.15);msg(HL[h]+' — it is getting worse...',3500)}
+ $('clock').textContent=HL[Math.min(6,t/60|0)];if(t>=360)return win();
+ if(drone)drone.gain.value=.03+.09*d;
+ if(!hint.a&&t>1.5){hint.a=1;msg('Look with the mouse: tub on the left, door on the right. Move the mouse to the bottom for your phone.',7000)}
+ if(!hint.b&&t>14){hint.b=1;msg('F = phone flashlight. Click the door or the curtain to use them.',6000)}
+ for(const m of mons){if(t<m.from)continue;
+  if(!m.on){m.on=true;m.pos=m.type==1?(Math.random()<.5?0:1):0;if(m.from)m.tm=R(4,8)}
+  if(m.pos==3)continue;
+  const watched=phoneOpen&&NODE_CAM[m.pos]==curCam;
+  m.tm-=dt*(m.type==2&&watched?0:1);
+  if(m.tm<=0){move(m);m.tm=mvInt()*R(.7,1.3)*(m.type==2?1.1:m.type==1?.85:1)}}
+ if(doorMon){const m=doorMon;
+  if(!doorClosed){m.kill-=dt;if(m.kill<=0)return die('door')}
+  else{m.wait-=dt;kn-=dt;if(kn<=0){knock();kn=R(.9,1.5)}
+   if(m.wait<=0){m.pos=Math.random()<.5?0:1;m.tm=mvInt()*R(.9,1.4);doorMon=null;step(.3);step(.15,.4)}}}
+ if(curtainClosed){curtainT-=dt;if(curtainT<=0){curtainClosed=false;noise(.25,1500,.15)}}
+ if(!N.on){N.sp-=dt*(doorClosed?1.3:1);
+  if(N.sp<=0&&!curtainClosed){N.on=true;N.kill=nKill();N.g=0;gurgle();if(!hint.n){hint.n=1;msg('A head in the tub! Flashlight ON, then click the curtain!',6000)}}}
+ else{N.kill-=dt;N.g-=dt;if(N.g<=0){gurgle();N.g=R(1.1,1.8)}if(N.kill<=0)return die('tub')}
+ if(t>240){hb-=dt;if(hb<=0){tone(60,.15,'sine',.4,-20);tone(60,.15,'sine',.3,-20,.18);hb=.6+.6*(1-(t-240)/120)}}
+ if(Math.random()<dt*.25)tone(R(1400,2200),.04,'sine',.05)}
+/* ---------- security cameras: a real 3D house, rendered only into the phone ---------- */
+const house=new THREE.Group();house.visible=false;scene.add(house);
+const hm=[M(0x6b6b62,{map:T}),M(0x4a3d33),M(0x3a2a1c),M(0x777777)],hx=(w,h,d,x,y,z,m)=>box(w,h,d,x,y,z,m,house);
+function room(cx,cz,w,d,m){hx(w,.1,d,cx,-.05,cz,hm[3]);hx(w,.1,d,cx,2.85,cz,hm[3]);hx(w,2.8,.1,cx,1.4,cz-d/2,m);hx(w,2.8,.1,cx,1.4,cz+d/2,m);hx(.1,2.8,d,cx-w/2,1.4,cz,m);hx(.1,2.8,d,cx+w/2,1.4,cz,m)}
+room(46,0,12,2.2,hm[0]);hx(.1,2.1,1.1,51.9,1.05,0,hm[2]);hx(.12,.1,.1,51.8,1,.4,hm[3]);
+room(46,12,8,6,hm[0]);hx(7,.9,.6,46,.45,14.6,hm[1]);hx(.9,2,.8,49.3,1,14.4,hm[3]);hx(1.6,.8,1,44.5,.4,11.5,hm[2]);
+room(46,22,8,6,hm[1]);hx(2.4,.8,1,45,.4,24.3,hm[2]);hx(1.4,.8,.1,48,.9,24.9,hm[3]);hx(.8,.4,.8,46.5,.2,22,hm[2]);
+const hl=[0,12,22].map(z=>{const l=new THREE.PointLight(0xffffff,.8,10,1);l.position.set(46,2.5,z);house.add(l);return l});
+const cams=[{p:[40.4,2.3,0],l:[52,1,0]},{p:[42.2,2.4,9.2],l:[47,.8,13.2]},{p:[42.2,2.4,19.2],l:[47,.8,23.2]}];
+const cam2=new THREE.PerspectiveCamera(62,1.6,.05,40),ren2=new THREE.WebGLRenderer({canvas:$('feed')});ren2.setSize(640,400,false);
+const NODE_CAM=[2,1,0,0],NODE_POS=[[46,22.4],[46,12.4],[46,0],[50.6,0]],mon3=[0,1,2,3].map(()=>mkMon(house));
+function sync3d(now){const c=cams[curCam];
+ mons.forEach((m,i)=>{const o=mon3[i],on=m.on&&NODE_CAM[m.pos]==curCam;o.visible=on;if(!on)return;
+  const idx=mons.slice(0,i).filter(q=>q.on&&q.pos==m.pos).length,x=NODE_POS[m.pos][0]+(m.pos<3?idx*1.3-.4:0),z=NODE_POS[m.pos][1];
+  o.position.set(x,Math.random()<.02?.06:0,z);o.rotation.y=Math.atan2(c.p[0]-x,c.p[2]-z);o.rotation.z=Math.sin(now/90+i*3)*.03});
+ cam2.position.set(...c.p);cam2.lookAt(...c.l);cam2.rotateY(Math.sin(now/2500)*.12)}
+function renderCam(now){sync3d(now);house.visible=true;hl.forEach(l=>l.intensity=Math.random()<.01+.03*dd()?.1:.8);scene.fog.density=.05;ren2.render(scene,cam2);house.visible=false;scene.fog.density=.09}
+const ox=$('ovl').getContext('2d'),CN=['CAM 1 · HALLWAY','CAM 2 · KITCHEN','CAM 3 · LIVING ROOM'];
+function drawOverlay(){const g=ox;g.clearRect(0,0,640,400);
+ for(let k=0;k<160;k++){g.fillStyle=`rgba(255,255,255,${Math.random()*.1})`;g.fillRect(Math.random()*640,Math.random()*400,2,2)}
+ g.fillStyle='rgba(0,0,0,.2)';for(let y=0;y<400;y+=3)g.fillRect(0,y,640,1);
+ if(glitch>0){glitch-=.05;g.fillStyle='rgba(255,255,255,.18)';g.fillRect(0,Math.random()*400,640,R(3,26))}
+ const v=g.createRadialGradient(320,200,120,320,200,400);v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,.65)');g.fillStyle=v;g.fillRect(0,0,640,400);
+ g.fillStyle='#fff';g.font='bold 16px Courier New';g.fillText(CN[curCam],14,26);g.fillText(HL[Math.min(6,t/60|0)],556,26);
+ if((performance.now()/500|0)%2){g.fillStyle='#f33';g.beginPath();g.arc(24,46,5,0,7);g.fill()}}
+/* ---------- input ---------- */
+let mx=.5,my=.4,mouse=true,drag=null;
+const rc=new THREE.Raycaster();
+function pick(e){rc.setFromCamera({x:e.clientX/innerWidth*2-1,y:-(e.clientY/innerHeight)*2+1},camera);const h=rc.intersectObjects([tubHit,doorHit])[0];if(h)h.object===tubHit?toggleCurtain():toggleDoor()}
+addEventListener('pointermove',e=>{
+ if(e.pointerType=='mouse'){mouse=true;mx=e.clientX/innerWidth;my=e.clientY/innerHeight;if(!running)return;if(!phoneOpen&&my>.93)setPhone(true);else if(phoneOpen&&my<.12)setPhone(false);return}
+ if(!drag||phoneOpen)return;mouse=false;
+ const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;drag.m+=Math.abs(dx)+Math.abs(dy);
+ ty=clamp(ty-dx/innerHeight*2.4,-1.55,1.55);tp=clamp(tp-dy/innerHeight*1.2,-.35,.45)});
+ren.domElement.addEventListener('pointerdown',e=>{if(!running||phoneOpen)return;if(e.pointerType=='mouse')return pick(e);drag={x:e.clientX,y:e.clientY,m:0,t:performance.now()}});
+addEventListener('pointerup',e=>{if(drag&&running&&!phoneOpen&&drag.m<12&&performance.now()-drag.t<350)pick(e);drag=null});
+addEventListener('keydown',e=>{if(!running)return;const k=e.key.toLowerCase();if(k=='f')setFlash(!flashOn);else if(k==' '){e.preventDefault();setPhone(!phoneOpen)}else if(/^[123]$/.test(k))selectCam(+k-1)});
+$('fbtn').onclick=()=>running&&setFlash(!flashOn);$('pbar').onclick=()=>setPhone(!phoneOpen);
+[...$('pb').children].forEach((b,i)=>b.onclick=()=>selectCam(i));
+addEventListener('resize',()=>{ren.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()});
+/* ---------- render loop ---------- */
+const fwd=new THREE.Vector3(),dir=new THREE.Vector3();let last=performance.now(),ty=0,tp=.1;
+function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000);last=now;
+ if(running)tick(dt);
+ if(!phoneOpen&&mouse){ty=(.5-mx)*3.1;tp=clamp((.5-my)*.9,-.35,.45)}
+ const k=Math.min(1,dt*8);camera.rotation.y+=(ty-camera.rotation.y)*k;camera.rotation.x+=(tp-camera.rotation.x)*k;
+ doorP.rotation.y+=((doorClosed?0:-1.5)-doorP.rotation.y)*Math.min(1,dt*10);
+ cg.scale.z+=((curtainClosed?1:.12)-cg.scale.z)*Math.min(1,dt*8);
+ N.r+=(((N.on?1:0)-N.r))*Math.min(1,dt*(N.on?2.5:5));ness.position.y=-1.25+.95*N.r;
+ const on=!!doorMon&&!doorClosed;monMesh.visible=on;
+ if(on){camera.getWorldDirection(fwd);monMesh.userData.eyes.getWorldPosition(dir);dir.sub(camera.position).normalize();monMesh.userData.eyes.visible=flashOn&&fwd.dot(dir)>.93}
+ bulb.intensity=Math.random()<(.004+.03*dd())?.02:.28*(.85+.15*Math.random());
+ if(phoneOpen){renderCam(now);drawOverlay()}
+ ren.render(scene,camera)}
+requestAnimationFrame(loop);
+show('THE LAST 6 HOURS','You are locked in a bathroom until 6 AM. Look around: the tub is on your left, the door on your right. Your phone shows the hallway, kitchen and living room. If a head rises in the tub, turn the flashlight on and close the curtain. If something stands at the door, shut it and keep it shut until the knocking stops. Mouse: look, bottom edge opens the phone, F flashlight. Touch: drag to look, tap objects, use the buttons.','BEGIN');
+if(coarse){$('fbtn').textContent='FLASHLIGHT';$('pbar').textContent='▼ PHONE'}
+</script></body></html>

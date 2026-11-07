@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: last-6-hours
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true

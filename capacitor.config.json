@@ -1,0 +1,10 @@
+{
+  "appId": "com.example.last6hours",
+  "appName": "The Last 6 Hours",
+  "webDir": "public",
+  "server": {
+    "url": "https://last-6-hours.onrender.com",
+    "cleartext": false
+  },
+  "android": { "backgroundColor": "#000000" }
+}
