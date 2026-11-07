@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 fill=%27%23000%27/%3E%3Ccircle cx=%275%27 cy=%278%27 r=%272%27 fill=%27%23fff%27/%3E%3Ccircle cx=%2711%27 cy=%278%27 r=%272%27 fill=%27%23fff%27/%3E%3C/svg%3E">
 <title>The Last 6 Hours</title>
 <meta name="theme-color" content="#000000"><meta name="mobile-web-app-capable" content="yes">
 <style>
@@ -96,7 +97,6 @@ const tubHit=box(.5,2,3,-1.9,1.1,-.9,hit),doorHit=box(1.2,2.2,1.6,2.4,1.1,-.9,hi
 let t=0,running=false,over=true,hr=0,doorClosed=false,curtainClosed=false,curtainT=0,flashOn=false,phoneOpen=false,curCam=0,doorMon=null,kn=0,hb=0,glitch=0,hint={},N={};
 const mons=[{type:0,from:0},{type:1,from:60},{type:2,from:120},{type:1,from:240}];
 const dd=()=>Math.min(1,t/360),mvInt=()=>11-7.8*Math.pow(dd(),.85),doorKill=()=>7.5-4.9*dd(),nKill=()=>9.5-6*dd(),nGap=()=>(38-28*Math.pow(dd(),.8))*R(.75,1.25);
-const NODE_CAM=[2,1,0,0];
 function reset(){t=0;hr=0;over=false;running=true;doorClosed=false;curtainClosed=false;doorMon=null;kn=0;hb=0;hint={};N={on:false,sp:24,kill:0,r:0,g:0};
  mons.forEach(m=>{m.on=false;m.pos=0;m.tm=9});setFlash(false);setPhone(false);selectCam(0);$('scr').classList.add('hide');$('js').classList.remove('on');$('clock').textContent=HL[0]}
 function msg(s,ms=4500){const m=$('msg');m.textContent=s;m.style.opacity=1;clearTimeout(msg.h);msg.h=setTimeout(()=>m.style.opacity=0,ms)}
